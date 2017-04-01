@@ -1,7 +1,7 @@
 #pragma once
 
 #define MODE_RX
-//#define MODE_TX
+// #define MODE_TX
 
 #if defined(MODE_TX)
 #	define APP_ADDR_SRC			0x0001 //Routing (network address < 0x8000); Non-routing (network address >= 0x8000)

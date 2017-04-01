@@ -4,6 +4,7 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 typedef struct {
     uint8_t R;
@@ -75,48 +76,48 @@ int main ()
     
     for (uint8_t ledID = 0; ledID < 16; ++ledID){
         LED_Color color;
-        color.R = 10;
+        color.R = 255;
         color.G = 0;
-        color.B = 0;
+        color.B = 100;
         
 //        LED_STRIPE[ledID] = color;
         
         LED_STRIPE_STOP[ledID] = color;
         
-        if(ledID == 3 || ledID == 4 || ledID == 5){
-            color.R = 0;
-            color.G = 10;
-            color.B = 0;
-        } else {
-            color.R = 0;
-            color.G = 0;
-            color.B = 0;
-        }
-        LED_STRIPE_RIGHT[ledID] = color;
+        // if(ledID == 3 || ledID == 4 || ledID == 5){
+        //     color.R = 0;
+        //     color.G = 10;
+        //     color.B = 0;
+        // } else {
+        //     color.R = 0;
+        //     color.G = 0;
+        //     color.B = 0;
+        // }
+        // LED_STRIPE_RIGHT[ledID] = color;
         
-        if(ledID == 11 || ledID == 12 || ledID == 13){
-            color.R = 0;
-            color.G = 10;
-            color.B = 0;
-        } else {
-            color.R = 0;
-            color.G = 0;
-            color.B = 0;
-        }
-        LED_STRIPE_LEFT[ledID] = color;
+        // if(ledID == 11 || ledID == 12 || ledID == 13){
+        //     color.R = 0;
+        //     color.G = 10;
+        //     color.B = 0;
+        // } else {
+        //     color.R = 0;
+        //     color.G = 0;
+        //     color.B = 0;
+        // }
+        // LED_STRIPE_LEFT[ledID] = color;
         
-        if(ledID == 11 || ledID == 12 || ledID == 13 ||
-           ledID == 7 || ledID == 8 || ledID == 9 ||
-           ledID == 3 || ledID == 4 || ledID == 5){
-            color.R = 0;
-            color.G = 10;
-            color.B = 0;
-        } else {
-            color.R = 0;
-            color.G = 0;
-            color.B = 0;
-        }
-        LED_STRIPE_THREE_WAYS[ledID] = color;
+        // if(ledID == 11 || ledID == 12 || ledID == 13 ||
+        //    ledID == 7 || ledID == 8 || ledID == 9 ||
+        //    ledID == 3 || ledID == 4 || ledID == 5){
+        //     color.R = 0;
+        //     color.G = 10;
+        //     color.B = 0;
+        // } else {
+        //     color.R = 0;
+        //     color.G = 0;
+        //     color.B = 0;
+        // }
+        // LED_STRIPE_THREE_WAYS[ledID] = color;
     }
     
     
@@ -130,24 +131,63 @@ int main ()
     
     _delay_ms(1000);
     
-    
+    LED_Color clear;
+    clear.R  = 0;
+    clear.G  = 0;
+    clear.B  = 30;
+
+    LED_Color pink;
+    pink.R  = 255;
+    pink.G  = 0;
+    pink.B  = 100;
+
+    LED_Color minorPink;
+    minorPink.R  = 65;
+    minorPink.G  = 0;
+    minorPink.B  = 25;
+
     while (1)
     {
+
+        type = rand() % 16;
+        int prev = ((type - 1) < 0) ? 15 : (type-1);
+        int next = ((type + 1) == 16) ? 0 : (type+1);
+        
+        LED_Color pink;
+        pink.R  = rand() % 178;
+        pink.G  = rand() % 178;
+        pink.B  = rand() % 178;
+
         for (int ledID = 0; ledID < 16; ++ledID)
         {
-            if(type == 0){
-                processLed(LED_STRIPE_STOP[ledID]);
-            } else if(type == 1){
-                processLed(LED_STRIPE_RIGHT[ledID]);
-            } else if(type == 2){
-                processLed(LED_STRIPE_LEFT[ledID]);
-            } else if(type == 3){
-                processLed(LED_STRIPE_THREE_WAYS[ledID]);
-            }
+
+            
+            processLed(pink);
+
+            // if(ledID == type){
+            //     processLed(pink);
+            // } else if(ledID == next) {
+            //     processLed(minorPink);
+            // }  else if(ledID == prev) {
+            //     processLed(minorPink);
+            // } else {
+            //     processLed(clear);
+            // }
+
+            // if(type == 0){
+            //     processLed(LED_STRIPE_STOP[ledID]);                
+            // } else if(type == 1){
+            //     processLed(LED_STRIPE_RIGHT[ledID]);
+            // } else if(type == 2){
+            //     processLed(LED_STRIPE_LEFT[ledID]);
+            // } else if(type == 3){
+            //     processLed(LED_STRIPE_THREE_WAYS[ledID]);
+            // }
         }
-        _delay_ms(5000);
+        _delay_ms(300);
         type++;
-        type = type % 4;
+        type = type % 16;
+        // type = type % 4;
         
     }
 }

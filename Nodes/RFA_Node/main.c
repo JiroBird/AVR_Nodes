@@ -21,17 +21,25 @@
 #include <avr/eeprom.h>
 
 /*- Declarations -----------------------------------------------------------*/
-static void Configured();
+void Configured(void);
 
-static void Echo();
-static void EchoADC(int8_t iPower);
-static bool IsResetButtonPressed();
-static bool IsLogButtonPressed();
+void Echo(void);
+void EchoADC(int8_t iPower);
+bool IsResetButtonPressed(void);
+bool IsLogButtonPressed(void);
 
-void SignalPower(uint16_t* aPower);
-void ReadTemperatureSensor (uint16_t* aCelciusOut);
+// void SignalPower(uint16_t* aPower);
+
+//ADC interaption
+void InitADC(void);
+void ReadADC(uint16_t* aOutValue, uint8_t aADCPort);
+void FixValueADC(void);
+void EchoALARM(int8_t type);
 
 /*- Types ------------------------------------------------------------------*/
+#define NUMBER_OF_USED_PORTS 1 // Количество используемых портов ADC
+static uint16_t baseValues[NUMBER_OF_USED_PORTS];
+
 typedef enum AppState_t
 {
 	APP_STATE_INITIAL,
@@ -94,20 +102,27 @@ static bool OnMsgRcvd (NWK_DataInd_t* ind)
 
 	// const uint8_t s = ind->size;
 
+	PORTD |= (1<<PD2);
+	_delay_ms(100);
+	PORTD = 0;
+	_delay_ms(100);
+		
 	//update NET_ADDRESS
 	if(ind->data[0]==0x17){
 		// Address = ind->data[2]<<8 | ind->data[1];
 		memcpy(&Address,&ind->data[1],2);
 		eeprom_write_word((uint16_t*)APP_ADDR_EEPROM,Address);
-
 		Configured();	
 	} else if(ind->data[0] == 0x0A){
 		Echo();
 	} else if(ind->data[0] == 0x0B){
 		EchoADC(ind->rssi);
-	} else if(ind->data[0] == 50) {
+	}
+	
+	/*
+	else if(ind->data[0] == 50) {
 		//TODO:
-	} else if(ind->data[0] == 51) {
+	} else if(ind->data[0] == 51) { //arrow processing
 		if(ind->data[1] == 0){
 			PORTB = 0b01000000;
 			PORTD = 0b00000000;
@@ -123,6 +138,7 @@ static bool OnMsgRcvd (NWK_DataInd_t* ind)
 			PORTD = 0b00000100;
 		}
 	}
+	*/
 
 	return true;
 }
@@ -135,6 +151,22 @@ static void APP_TaskHandler(void)
 	{
 		case APP_STATE_INITIAL:
 		{
+
+			PORTD |= (1<<PD2);
+			_delay_ms(200);
+			PORTD = 0;
+			_delay_ms(200);
+
+			PORTD |= (1<<PD2);
+			_delay_ms(200);
+			PORTD = 0;
+			_delay_ms(200);
+
+			PORTD |= (1<<PD2);
+			_delay_ms(200);
+			PORTD = 0;
+			_delay_ms(200);
+
 			PORTB = 0b00000000;
 			PORTD = 0b00000000;
 
@@ -156,20 +188,72 @@ static void APP_TaskHandler(void)
 				Address = APP_ADDR_SRC;
 				isConfigured = 0;
 				appState = APP_STATE_CONFIGURATION;
+
+				PORTD |= (1<<PD2);
+				_delay_ms(100);
+				PORTD = 0;
+				_delay_ms(100);
+
+				PORTD |= (1<<PD2);
+				_delay_ms(100);
+				PORTD = 0;
+				
+				_delay_ms(100);
+				PORTD |= (1<<PD2);
+				_delay_ms(100);
+				PORTD = 0;
+
+				_delay_ms(2000);
+
+				NWK_SetAddr(Address);
+				NWK_SetPanId(APP_PANID);
+				PHY_SetChannel(APP_CHANNEL);
+				PHY_SetRxState(true);
+				// PHY_SetTxPower();
+				NWK_OpenEndpoint(APP_ENDPOINT, OnMsgRcvd);
+
+				sei();
 			} else {
+				PORTD |= (1<<PD2);
+				_delay_ms(100);
+				PORTD = 0;
+				
+				_delay_ms(100);
+				PORTD = 0;
+				_delay_ms(100);
+
+				PORTD |= (1<<PD2);
+				_delay_ms(100);
+				PORTD = 0;
+				_delay_ms(100);
+				PORTD = 0;
+				_delay_ms(100);
+
+				PORTD |= (1<<PD2);
+				_delay_ms(100);
+				PORTD = 0;
+				_delay_ms(100);
+				PORTD = 0;
+				_delay_ms(100);
+
+				PORTD |= (1<<PD2);
+				_delay_ms(100);
+				PORTD = 0;
+				_delay_ms(2000);
 
 				isConfigured = 1;
+				
+				NWK_SetAddr(Address);
+				NWK_SetPanId(APP_PANID);
+				PHY_SetChannel(APP_CHANNEL);
+				PHY_SetRxState(true);
+				// PHY_SetTxPower();
+				NWK_OpenEndpoint(APP_ENDPOINT, OnMsgRcvd);
+
+				sei();
+
 				appState = APP_STATE_IDLE;
 			}
-
-			NWK_SetAddr(Address);
-			NWK_SetPanId(APP_PANID);
-			PHY_SetChannel(APP_CHANNEL);
-			PHY_SetRxState(true);
-			// PHY_SetTxPower();
-			NWK_OpenEndpoint(APP_ENDPOINT, OnMsgRcvd);
-
-			sei();
 		} break;
 
 		case APP_STATE_CONFIGURATION:
@@ -184,13 +268,22 @@ static void APP_TaskHandler(void)
 				readyToSend = 0;
 			}
 
-			if(IsResetButtonPressed()){
-				eeprom_write_word((uint16_t*)APP_ADDR_EEPROM,0xFFFF);
-				isConfigured = 0;
-				appState = APP_STATE_INITIAL;
-			} else if(IsLogButtonPressed()){
-				EchoADC(255);
+			FixValueADC();
+			if (baseValues[0] >=200)   
+			{
+				EchoALARM(0);
+				PORTD |= (1<<PD2);
+				_delay_ms(1000);
 			}
+			PORTD = 0;
+
+			// if(IsResetButtonPressed()){
+			// 	eeprom_write_word((uint16_t*)APP_ADDR_EEPROM,0xFFFF);
+			// 	isConfigured = 0;
+			// 	appState = APP_STATE_INITIAL;
+			// } else if(IsLogButtonPressed()){
+			// 	EchoADC(255);
+			// }
 		} break;
 
 		case APP_STATE_WAIT_MSG_SEND:
@@ -202,14 +295,16 @@ static void APP_TaskHandler(void)
 
 int main(void)
 {	
-	DDRB  = 0b01100000;
+	DDRB  = 0b01100001;
 	DDRD  = 0b00111100;
 
 	PORTB = 0b00000000;
 	PORTD = 0b00000000;
 	
 	DDRF  = 0b00000000;
-
+	
+	InitADC();
+			
 	SYS_Init();
 	while (1)
 	{
@@ -236,7 +331,8 @@ ISR(TIMER1_COMPA_vect)
 	}
 }
 
-static void Configured(){
+void Configured(void)
+{
 	TCCR1B	= 0;
 	TCCR3B	= 0;
 	
@@ -252,7 +348,8 @@ static void Configured(){
 	appState = APP_STATE_INITIAL;
 }
 
-static void Echo(){ 
+void Echo(void)
+{ 
 	if(appState == APP_STATE_IDLE) {
 		appMessage.dstAddr	= 0x0002;
 		appMessage.size = 2;
@@ -262,7 +359,8 @@ static void Echo(){
 	}
 }
 
-static void EchoADC(int8_t iPower){
+void EchoADC(int8_t iPower)
+{
 	if(appState == APP_STATE_IDLE) {
 
 		appMessage.dstAddr	= 0x0002;
@@ -275,8 +373,22 @@ static void EchoADC(int8_t iPower){
 	}
 }
 
+void EchoALARM(int8_t type)
+{
+	if(appState == APP_STATE_IDLE) {
 
-static bool IsResetButtonPressed () {
+		appMessage.dstAddr	= 0x0002;
+		appMessage.size = 2;
+		appMessage.data[0] = 100;
+		appMessage.data[1] = type;
+		
+		readyToSend = 1;
+	}
+}
+
+
+bool IsResetButtonPressed (void) 
+{
 	if ( PINF & (1 << PF0)) 
 	{
 		_delay_ms(100);
@@ -288,7 +400,8 @@ static bool IsResetButtonPressed () {
 	return false;
 }
 
-static bool IsLogButtonPressed () {
+bool IsLogButtonPressed (void) 
+{
 	if ( PINF & (1 << PF1)) 
 	{
 		_delay_ms(100);
@@ -298,4 +411,55 @@ static bool IsLogButtonPressed () {
 		}
 	}
 	return false;
+}
+
+void InitADC(void)
+{
+	//ADC
+	ADMUX	= (0 << REFS1) | (1 << REFS0) //1.8v AVDD
+	| (0 << ADLAR); //Store 8-bit in ADCH
+
+	ADCSRA	= (1 << ADEN) // ADC Enable
+	//| (1 << ADIE) // ADC Interrupt Enable
+	| (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0); //Prescaler 1/128
+
+	while (ADCSRB & (1 << REFOK)); // wait for Internal ION
+}
+
+void ReadADC(uint16_t* aOutValue, uint8_t aADCPort)
+{
+	uint8_t valADMUX = ADMUX;
+	valADMUX &= ~((1 << MUX5) | (1 << MUX4) | (1 << MUX3) | (1 << MUX2) | (1 << MUX1) | (1 << MUX0));
+
+	switch (aADCPort)
+	{
+		case 0: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (0 << MUX0); break;
+		case 1: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (0 << MUX2) | (0 << MUX1) | (1 << MUX0); break;
+		case 2: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (0 << MUX0); break;
+		case 3: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (0 << MUX2) | (1 << MUX1) | (1 << MUX0); break;
+		case 4: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (0 << MUX1) | (0 << MUX0); break;
+		case 5: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (0 << MUX1) | (1 << MUX0); break;
+		case 6: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (1 << MUX1) | (0 << MUX0); break;
+		case 7: valADMUX |= (0 << MUX5) | (0 << MUX4) | (0 << MUX3) | (1 << MUX2) | (1 << MUX1) | (1 << MUX0); break;
+	}
+
+	ADMUX = valADMUX;/**/
+
+	uint16_t v = 0;
+	for (uint8_t id = 0; id < (1 << 4); ++id)
+	{
+		ADCSRA |= (1<<ADSC); // Start conversion
+		while (ADCSRA & (1<<ADSC)); // wait for conversion to complete
+		v += (uint16_t)ADC;
+	}
+
+	*aOutValue = v >> 4;
+}
+
+void FixValueADC(void)
+{
+	for (uint8_t i = 0; i < NUMBER_OF_USED_PORTS; i++)
+	{
+		ReadADC(&(baseValues[i]), i);
+	}
 }
